@@ -1,6 +1,6 @@
 """
 This contains classes and methods related to the 
-Storage-Limited Store-and-Forward Semiring.
+Storage-Limited Store-and-Forward Nevada Semiring.
 """
 
 from __future__ import annotations
@@ -106,8 +106,7 @@ class Contact():
     def __init__(self, 
         start: float, 
         end: float, 
-        delay: float,
-        boolean = False
+        delay: float
     ) -> None:
 
         # [start, end] must form interval
@@ -134,8 +133,6 @@ class Contact():
         self.end = end
         self.delay = delay
 
-        self.boolean = boolean
-
     def get_interval(self) -> P.Interval:
         return P.closed(self.start, self.end)
 
@@ -146,11 +143,11 @@ class Contact():
 
         return False
 
-    def get_entry(self, i: float, j: float) -> bool | float:
+    def get_entry(self, i: float, j: float, flag: bool = False) -> bool | float:
 
         contained = self.contains_point(i, j)
 
-        if self.boolean:
+        if flag:
             return contained
 
         return self.end - i if contained else 0
@@ -206,8 +203,8 @@ class Contact():
         return f"([{self.start}, {self.end}] : {self.delay})"
 
     @staticmethod
-    def identity(boolean: bool = False) -> Contact:
-        return Contact(-INF, INF, 0, boolean)
+    def identity() -> Contact:
+        return Contact(-INF, INF, 0)
 
 
 if __name__ == "__main__":
@@ -229,7 +226,7 @@ if __name__ == "__main__":
     points = Contact(-INF, INF, 5).get_boundary()
     assert (-INF, -INF) in points and (INF, INF) in points
 
-    assert Contact(5, 5, 0, True).get_entry(5, 5)
+    assert Contact(5, 5, 0).get_entry(5, 5, True)
     # print()
 
     # points = [(0, 1), (0, 1)]
@@ -240,21 +237,20 @@ if __name__ == "__main__":
     # print(diagram)
 
 class Storage():
-    def __init__(self, capacity: float = INF, boolean = False):
+    def __init__(self, capacity: float = INF):
 
         # capacity must be in [0, inf]
         if capacity < 0:
             message = f"must have `0 <= capacity <= INF ({capacity})"
             raise ValueError(message)
 
-        self.capacity = INF if boolean else capacity
-        self.boolean = boolean
+        self.capacity = capacity
 
-    def get_entry(self, i: float, j: float) -> bool | float:
+    def get_entry(self, i: float, j: float, flag: bool = False) -> bool | float:
 
         contained = self.contains_point(i, j)
 
-        if self.boolean:
+        if flag:
             return contained
 
         return INF if contained else 0
@@ -309,27 +305,25 @@ class Storage():
     def __mul__(self, other: Storage | Contact) -> Nevada | Storage:
 
         if isinstance(other, Contact):
-            return Nevada(Contact.identity(self.boolean), other, self)
+            return Nevada(Contact.identity(), other, self)
             
         if isinstance(other, Storage):
-            return Storage(self.capacity + other.capacity, self.boolean)
+            return Storage(self.capacity + other.capacity)
 
         return NotImplemented
 
     def __rmul__(self, other: Contact) -> Nevada:
         if isinstance(other, Contact):
-            return Nevada(other, Contact.identity(self.boolean), self)
+            return Nevada(other, Contact.identity(), self)
         return NotImplemented
 
 
     def __str__(self) -> str:
-        stype = "b" if self.boolean else "mm"
-        # stype = "boolean" if self.boolean else "max-min"
-        return f"S_({self.capacity}) [{stype}]"
+        return f"S_({self.capacity})"
 
     @staticmethod
-    def identity(boolean: bool = False) -> Storage:
-        return Storage(capacity=INF, boolean=boolean)
+    def identity() -> Storage:
+        return Storage(capacity=0) # TODO : double check
 
 if __name__ == "__main__":
 
@@ -338,8 +332,8 @@ if __name__ == "__main__":
     assert Storage(5).get_entry(5, 15) == 0
 
     # test get_entry() [boolean sr]
-    assert Storage(5, True).get_entry(5, 5) == True
-    assert Storage(5, False).get_entry(5, 15) == False
+    assert Storage(5).get_entry(5, 5, True) == True
+    assert Storage(5).get_entry(5, 15, False) == False
 
     # test __contains__
     assert Storage(5) in Storage(5)
@@ -353,14 +347,13 @@ if __name__ == "__main__":
 
 class Nevada():
 
-    def __init__(self, *args: Contact | Storage, boolean = False) -> None:
+    def __init__(self, *args: Contact | Storage) -> None:
 
         if len(args) == 1 and isinstance(args[0], Contact):
             (l, r, s) = Nevada.standard_form(
                 Contact.identity(), 
                 args[0], 
-                Storage(0), 
-                boolean
+                Storage(0)
             )
             # self.left = Contact.identity()
             # self.right = args[0]
@@ -368,10 +361,9 @@ class Nevada():
             (self.left, self.right, self.storage) = (l, r, s)
         elif len(args) == 1 and isinstance(args[0], Storage):
             (l, r, s) = Nevada.standard_form(
-                Contact.identity(boolean), 
-                Contact.identity(boolean), 
-                args[0], 
-                boolean
+                Contact.identity(), 
+                Contact.identity(), 
+                args[0]
             )
             # self.left = Contact.identity(boolean)
             # self.right = Contact.identity(boolean)
@@ -382,58 +374,53 @@ class Nevada():
         elif len(args) == 3 and isinstance(args[0], Contact) and \
             isinstance(args[1], Contact) and isinstance(args[2], Storage):
 
-            (l, r, s) = Nevada.standard_form(args[0], args[1], args[2], boolean)
+            (l, r, s) = Nevada.standard_form(args[0], args[1], args[2])
             (self.left, self.right, self.storage) = (l, r, s)
 
         else:
             raise ValueError("Invalid arguments to initialize `Nevada`")
 
-        self.boolean = boolean
-
     @staticmethod
     def standard_form(
         left: Contact,
         right: Contact,
-        storage: Storage,
-        boolean: bool = False
+        storage: Storage
     ) -> tuple[Contact, Contact, Storage]:
 
-        left_contact = Contact(0, 0, 0, boolean)
+        left_contact = Contact(0, 0, 0)
         if left.start <  min(left.end, right.end - left.delay):
             left_contact = Contact(
                 # left.start,
                 max(left.start, right.start - left.delay - storage.capacity),
                 min(left.end, right.end - left.delay),
-                0,
-                boolean
+                0
             )
 
-        right_contact = Contact(0, 0, 0, boolean)
+        right_contact = Contact(0, 0, 0)
         if max(left.start, right.start - left.delay) < right.end - left.delay:
             right_contact = Contact(
                 max(left.start, right.start - left.delay),
                 # right.end - left.delay,
                 min(left.end + storage.capacity, right.end - left.delay),
-                left.delay + right.delay,
-                boolean
+                left.delay + right.delay
             )
 
         standard_form = (
             left_contact, 
             right_contact, 
-            Storage(storage.capacity, boolean)
+            Storage(storage.capacity)
         )
 
         return standard_form
 
-    def get_entry(self, i: float, j: float) -> bool | float:
+    def get_entry(self, i: float, j: float, flag: bool = False) -> bool | float:
 
         # if (i, j) in self:
         if self.contains_point(i, j):
             value = min(self.left.end - i, self.right.end - j + self.right.delay)
-            return True if self.boolean else value
+            return True if flag else value
 
-        return False if self.boolean else 0
+        return False if flag else 0
 
     def get_boundary(self) -> list[Point]:
         """
@@ -529,8 +516,8 @@ class Nevada():
 
     def is_storage(self) -> bool:
 
-        return self.left == Contact.identity(self.boolean) and \
-            self.right == Contact.identity(self.boolean)
+        return self.left == Contact.identity() and \
+            self.right == Contact.identity()
 
     def contains_point(self, i: float, j: float) -> bool:
 
@@ -643,9 +630,7 @@ class Nevada():
             self.storage == other.storage
 
     def __mul__(self, other: Contact | Storage | Nevada) -> Nevada:
-        
-        boolean = self.boolean
-        
+                
         if isinstance(other, Nevada):
             # both are nevadas
 
@@ -654,43 +639,36 @@ class Nevada():
             c = Contact(
                 ic.start - self.storage.capacity, 
                 ic.end, 
-                0, 
-                boolean
+                0
             )
             left = self.left * c
 
             c = Contact(
                 ic.start, 
                 ic.end + other.storage.capacity, 
-                ic.delay, 
-                boolean
+                ic.delay
             )
             right = c * other.right
 
             storage = Storage(
-                self.storage.capacity + other.storage.capacity, 
-                boolean
+                self.storage.capacity + other.storage.capacity
             )
 
-            return Nevada(left, right, storage, boolean=boolean)
+            return Nevada(left, right, storage)
         elif isinstance(other, Storage):
             # other is storage; cast to nevada and use above logic
-            return self * Nevada(other, boolean=boolean)
+            return self * Nevada(other)
         elif isinstance(other, Contact):
-            return Nevada(self.left, self.right * other, self.storage, 
-                boolean=boolean)
+            return Nevada(self.left, self.right * other, self.storage)
         else:
             return NotImplemented
 
     def __rmul__(self, other: Contact | Storage) -> Nevada:
 
-        boolean = self.boolean
-
         if isinstance(other, Storage):
-            return Nevada(other, boolean=boolean) * self
+            return Nevada(other) * self
         elif isinstance(other, Contact):
-            return Nevada(other * self.left, self.right, self.storage, 
-                boolean=boolean)
+            return Nevada(other * self.left, self.right, self.storage)
         else:
             return NotImplemented
 
