@@ -685,7 +685,7 @@ class Nevada():
             return NotImplemented
 
     def __str__(self) -> str:
-        return f"{self.left} \cdot {self.storage} \cdot {self.right}"
+        return f"{self.left} \\cdot {self.storage} \\cdot {self.right}"
 
     def get_ascii_diagram(self, start: float, end: float, step: float = 1):
         return get_ascii_diagram(self, start, end, step) 
