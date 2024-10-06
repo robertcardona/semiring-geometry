@@ -143,6 +143,9 @@ class Contact():
 
         return False
 
+    def __getitem__(self, index: Point) -> bool | float:
+        return self.get_entry(index[0], index[1])
+
     def get_entry(self, i: float, j: float, flag: bool = False) -> bool | float:
 
         contained = self.contains_point(i, j)
@@ -258,6 +261,9 @@ class Storage():
             raise ValueError(message)
 
         self.capacity = capacity
+
+    def __getitem__(self, index: Point) -> bool | float:
+        return self.get_entry(index[0], index[1])
 
     def get_entry(self, i: float, j: float, flag: bool = False) -> bool | float:
 
@@ -433,6 +439,9 @@ class Nevada():
         )
 
         return standard_form
+
+    def __getitem__(self, index: Point) -> bool | float:
+        return self.get_entry(index[0], index[1])
 
     def get_entry(self, i: float, j: float, flag: bool = False) -> bool | float:
 
@@ -810,13 +819,30 @@ class Product():
         
         self.sequence = sequence
 
+        # keep track of simplified form; 
+        # maybe pass through to avoid recalculating
         e: Nevada | Storage | Contact = Contact.identity()
         for s in sequence:
             e = e * s
         self.evaluated = e
 
-    def get_entry(self, i: float, j: float) -> float:
-        return self.evaluated.get_entry(i, j)
+        # possibly keep track of boundary as well
+
+    def append(self, other: Product | Nevada | Storage | Contact) -> None:
+        if isinstance(other, Product):
+            self.sequence = self.sequence + other.sequence
+            self.evaluated = self.evaluated * other.evaluated
+        else:
+            self.sequence.append(other)
+            self.evaluated = self.evaluated * other
+
+        return None
+
+    def __getitem__(self, index: Point) -> bool | float:
+        return self.get_entry(index[0], index[1])
+
+    def get_entry(self, i: float, j: float, flag: bool = False) -> bool | float:
+        return self.evaluated.get_entry(i, j, flag)
 
     def __mul__(self, other: Product | Nevada | Storage | Contact) -> Product:
         if isinstance(other, Product):
@@ -826,6 +852,10 @@ class Product():
         #         isinstance(other, Contact):
         return Product(self.sequence + [other])
 
+    def __rmul__(self, other: Nevada | Storage | Contact) -> Product:
+
+        return Product([other] + self.sequence)
+
         # return NotImplemented
     def __eq__(self, other) -> bool:
         if isinstance(other, Product):
@@ -833,8 +863,13 @@ class Product():
 
         return NotImplemented
 
+    def __format__(self, spec: str) -> str:
+        if spec == "e":
+            return f"{self.evaluated}"
+        return str(self)
+
     def __str__(self) -> str:
-        return " ".join([str(e) for e in self.sequence]) + f"={self.evaluated}"
+        return "*".join([str(e) for e in self.sequence])
 
 # `Product` class unit tests
 if __name__ == "__main__":
@@ -870,7 +905,7 @@ if __name__ == "__main__":
         Storage(0),
         Contact(2, 7, 0)
     ]
-    print(Product(sequence_standard))
+    # print(f"{Product(sequence):e}")
 
 class Sum():
 
@@ -881,11 +916,35 @@ class Sum():
 
         self.elements = elements
 
+    def __getitem__(self, index: Point) -> bool | float:
+        return self.get_entry(index[0], index[1])
+
+    def get_entry(self, i: float, j: float, flag: bool = False) -> bool | float:
+
+        if flag:
+            value_b: bool = False
+            for e in self.elements:
+                value_b = value_b or bool(e.get_entry(i, j, flag))
+            return value_b
+
+        value: float = 0
+        for e in self.elements:
+            value = max(value, e.get_entry(i, j))
+
+        return value
+
+    def append(self, other: Sum | Product | Nevada | Storage | Contact) -> None:
+        # possibly check if each summand is already contained in some existing
+        #   summand
+        return None
+
     def __add__(self, other: Sum | Product | Nevada | Storage | Contact) -> Sum:
         if isinstance(other, Sum):
             return Sum(self.elements + other.elements)
         
         return Sum(self.elements + [other])
+
+    # TODO : __radd__
 
     def __mul__(self, other: Sum | Product | Nevada | Storage | Contact) -> Sum:
 
@@ -894,8 +953,13 @@ class Sum():
         if isinstance(other, Sum):
             pairs = [(i, j) for i in self.elements for j in other.elements]
             for i, j in pairs:
-                # elements.append(i * j)
-                # elements.append(element)
-                pass
+                elements.append(i * j)
+        else:
+            elements.append(other)
 
         return Sum(elements)
+
+
+    def __str__(self) -> str:
+
+        return "+".join([str(e) for e in self.elements])
