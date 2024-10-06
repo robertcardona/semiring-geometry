@@ -200,7 +200,14 @@ class Contact():
         return Contact(start, end, delay)
 
     def __str__(self) -> str:
-        return f"([{self.start}, {self.end}] : {self.delay})"
+        start = str(self.start)
+        end = str(self.end)
+        if self.start == -INF:
+            start = "-\\infty"
+        if self.end == INF:
+            end = "\\infty"
+
+        return f"([{start}, {end}] : {self.delay})"
 
     @staticmethod
     def identity() -> Contact:
@@ -319,7 +326,12 @@ class Storage():
 
 
     def __str__(self) -> str:
-        return f"S_({self.capacity})"
+        # return f"S_({self.capacity})"
+        if self.capacity == INF:
+            capacity = "\\infty"
+        else:
+            capacity = str(self.capacity)
+        return "S_{" + capacity + "}"
 
     @staticmethod
     def identity() -> Storage:
@@ -673,7 +685,7 @@ class Nevada():
             return NotImplemented
 
     def __str__(self) -> str:
-        return f"{self.left} {self.storage} {self.right}"
+        return f"{self.left} \cdot {self.storage} \cdot {self.right}"
 
     def get_ascii_diagram(self, start: float, end: float, step: float = 1):
         return get_ascii_diagram(self, start, end, step) 
