@@ -199,15 +199,21 @@ class Contact():
 
         return Contact(start, end, delay)
 
-    def __str__(self) -> str:
-        start = str(self.start)
-        end = str(self.end)
-        if self.start == -INF:
-            start = "-\\infty"
-        if self.end == INF:
-            end = "\\infty"
+    def __format__(self, spec: str) -> str:
+        if spec == "t":
+            start = str(self.start)
+            end = str(self.end)
+            if self.start == -INF:
+                start = "-\\infty"
+            if self.end == INF:
+                end = "\\infty"
 
-        return f"([{start}, {end}] : {self.delay})"
+            return f"([{start}, {end}] : {self.delay})"
+
+        return str(self)
+
+    def __str__(self) -> str:
+        return f"([{self.start}, {self.end}] : {self.delay})"
 
     @staticmethod
     def identity() -> Contact:
@@ -324,14 +330,17 @@ class Storage():
             return Nevada(other, Contact.identity(), self)
         return NotImplemented
 
+    def __format__(self, spec: str) -> str:
+        if spec == "t":
+            if self.capacity == INF:
+                capacity = "\\infty"
+            else:
+                capacity = str(self.capacity)
+            return "S_{" + capacity + "}"
+        return str(self)
 
     def __str__(self) -> str:
-        # return f"S_({self.capacity})"
-        if self.capacity == INF:
-            capacity = "\\infty"
-        else:
-            capacity = str(self.capacity)
-        return "S_{" + capacity + "}"
+        return f"S_({self.capacity})"
 
     @staticmethod
     def identity() -> Storage:
@@ -684,8 +693,14 @@ class Nevada():
         else:
             return NotImplemented
 
+    def __format__(self, spec: str) -> str:
+        if spec == "t":
+            return f"{self.left:t} \\cdot {self.storage:t} \\cdot {self.right:t}"
+        return str(self)
+
+
     def __str__(self) -> str:
-        return f"{self.left} \\cdot {self.storage} \\cdot {self.right}"
+        return f"{self.left} {self.storage} {self.right}"
 
     def get_ascii_diagram(self, start: float, end: float, step: float = 1):
         return get_ascii_diagram(self, start, end, step) 
