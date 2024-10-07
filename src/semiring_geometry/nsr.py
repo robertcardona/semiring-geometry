@@ -326,7 +326,7 @@ class Storage():
 
         if isinstance(other, Contact):
             return Nevada(Contact.identity(), other, self)
-            
+        
         if isinstance(other, Storage):
             return Storage(self.capacity + other.capacity)
 
@@ -813,9 +813,7 @@ if __name__ == "__main__":
 
 class Product():
     
-    def __init__(self, 
-        sequence: list[Nevada | Storage | Contact],
-        summary: ContactSequenceSummary | None = None):
+    def __init__(self, sequence: list[Nevada | Storage | Contact]):
         
         if len(sequence) == 0:
             raise ValueError(f"`sequence` must not be empty")
@@ -986,42 +984,61 @@ if __name__ == "__main__":
     a = Sum([Contact(1, 2, 5), Storage(2), Contact(0, 3, 4)])
     print(f"{a}")
 
+# this is essentially another for of Product class
 class ContactSequence():
 
 
-    def __init__(self, sequence: list[Nevada | Storage | Contact]) -> None:
+    def __init__(self, 
+        sequence: list[Nevada | Storage | Contact],
+        summary: ContactSequenceSummary | None = None
+    ) -> None:
 
-        # self.sequence = sequence
-        self.contact_sequence: list[Contact] = []
-        self.storage_sequence: list[Storage] = []
+        contact_sequence: list[Contact] = []
+        storage_sequence: list[Storage] = []
 
-        # TODO : prepare sequence
-        # for e in sequence:
-        #     if isinstance(e, Contact):
+        for i, e in enumerate(sequence):
+            m, n = len(contact_sequence), len(storage_sequence)
+            if isinstance(e, Contact):
+                if m == n - 1:
+                    contact_sequence[-1] *= e
+                else:
+                    contact_sequence.append(e)
+            elif isinstance(e, Storage):
+                if m == 0:
+                    contact_sequence.append(Contact.identity())
+                    storage_sequence.append(e)
+                elif m == n:
+                    product = storage_sequence[-1] * e
+                    assert isinstance(product, Storage)
 
-        # too much for an init
-        n = len(self.contact_sequence)
-        
-        start_adjusted: list[float] = []
-        end_adjusted: list[float] = []
-        delay_cumulant: list[float] = []
-        storage_cumulant: list[float] = []
+                    storage_sequence[-1] = product
+                else:
+                    storage_sequence.append(e)
+            elif isinstance(e, Nevada):
+                if m == n:
+                    contact_sequence.append(e.left)
+                    storage_sequence.append(e.storage)
+                    contact_sequence.append(e.right)
+                else:
+                    contact_sequence[-1] *= e.left
+                    storage_sequence.append(e.storage)
+                    contact_sequence.append(e.right)
+            else:
+                raise ValueError(f"Invalid object type in `sequence` : {e}")
 
-        E = min(end_adjusted[:-1])
-        epsilon = end_adjusted[-1]
-        e = end_adjusted[0]
-        tau = min([end - max(start_adjusted[:k + 1], default=0) 
-            for k, end in enumerate(end_adjusted)])
-        omega = sum(delay_cumulant)
-        A = sum(storage_cumulant)
-        rho = min([end_adjusted[-1]] + [end_adjusted[k] + storage_cumulant[n - 1] - storage_cumulant[k - 1] for k in range(n)])
-        sigma = max([start_adjusted[i] - storage_cumulant[i - 1] for i in range(n)])
-        S = max(start_adjusted)
+        self.contact_sequence = contact_sequence
+        self.storage_sequence = storage_sequence
 
-
-        self.summary = ContactSequenceSummary(E, epsilon, e, tau, omega, A, rho, sigma, S)
+        if summary is not None:
+            self.summary = summary
 
         return None
+
+    def get_entry(self, i: float, j: float, flag:bool = False) -> bool | float:
+        return self.summarize().get_entry(i, j, flag)
+
+    def get_boundary(self) -> list[Point]:
+        return self.summarize().get_boundary()
 
     def append(self, other: ContactSequence | Nevada | Storage | Contact) -> None:
 
@@ -1029,33 +1046,43 @@ class ContactSequence():
             self.contact_sequence += other.contact_sequence
             self.storage_sequence += other.storage_sequence
             
-            if self.summary == None:
-                self.summary = self.get_summary()
-            self.summary = self.summary * other.summary
-
-
+            self.summary = self.summarize() * other.summarize()
+        else:
+            self.append(ContactSequence([other]))
 
         return None
 
     def get_summary(self) -> ContactSequenceSummary: # TODO : delete none
         # assuming self.sequence is of the form c S c S ... S c
-        c, n = self.contact_sequence, len(self.contact_sequence)
-        s = self.storage_sequence
+        c, m = self.contact_sequence, len(self.contact_sequence)
+        s, n = self.storage_sequence, len(self.storage_sequence)
 
-        # TODO : double check all of this
-        start_adjusted = [c[0].start]
-        end_adjusted = [c[0].end]
-        delay_cumulant = [c[0].delay]
-        storage_cumulant = [0]
+        assert m == n - 1, "contact and storage sequences incorrect form"
 
-        for k in range(1, n):
-            delay_k = c[k].delay + delay_cumulant[-1]
-            start_k = c[k].start - delay_k
-            # delay_cumulant.append(c[k].delay + delay_cumulant[-1])
-            # start_adjusted.append()
-        
+        cumulant_delay = [sum(x.delay for x in c[:i + 1])
+                                            for i in range(m)] + [0]
+        cumulant_storage = [sum([y.capacity for y in s[:i + 1]])
+                                            for i in range(n)] + [0]
+        start_adjusted = [x.start - cumulant_storage[i - 1] 
+                                            for i, x in enumerate(c)]
+        end_adjusted = [x.end - cumulant_storage[i - 1] 
+                                            for i, x in enumerate(c)]
 
-        return ContactSequenceSummary(0, 0, 0, 0, 0, 0, 0, 0, 0)
+        E = min(end_adjusted[:-1])
+        epsilon = end_adjusted[-1]
+        e = end_adjusted[0]
+        tau = min([end - max(start_adjusted[:k + 1], default=0) 
+            for k, end in enumerate(end_adjusted)])
+        omega = sum(cumulant_delay)
+        A = sum(cumulant_storage)
+        rho = min([end_adjusted[-1]] + \
+            [end_adjusted[k] + cumulant_storage[n - 1] - cumulant_storage[k - 1]
+                for k in range(n)])
+        sigma = max([start_adjusted[i] - cumulant_storage[i - 1] 
+                        for i in range(n)])
+        S = max(start_adjusted)
+
+        return ContactSequenceSummary(E, epsilon, e, tau, omega, A, rho, sigma, S)
 
     def summarize(self) -> ContactSequenceSummary:
         if self.summarize is not None:
@@ -1064,14 +1091,10 @@ class ContactSequence():
 
         return self.summary
 
-    # def __getattr__(self, item: str) -> float:
-    #     if item == "summary":
-    #         if "summary" not in self.__dict__:
-    #             self.__dict__["summary"] = self.get_summary()
-
-    #     message = f"{item} is not a valid attribute of ContactSequence"
-    #     raise AttributeError(message)
-
+    def __str__(self) -> str:
+        c, s = self.contact_sequence, self.storage_sequence
+        interleaved = [e for p in zip(c, s) for e in p] + [c[-1]]
+        return "*".join([f"{e:t}" for e in interleaved])
 
 class ContactSequenceSummary():
 
