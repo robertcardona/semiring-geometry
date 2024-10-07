@@ -144,6 +144,7 @@ class Contact():
         return False
 
     def __getitem__(self, index: Point) -> bool | float:
+        # NOTE : this assumes you want the max-min [0, infty] semiring
         return self.get_entry(index[0], index[1])
 
     def get_entry(self, i: float, j: float, flag: bool = False) -> bool | float:
@@ -838,6 +839,9 @@ class Product():
 
         return None
 
+    def get_boundary(self) -> list[Point]:
+        return self.evaluated.get_boundary()
+
     def __getitem__(self, index: Point) -> bool | float:
         return self.get_entry(index[0], index[1])
 
@@ -864,7 +868,7 @@ class Product():
         return NotImplemented
 
     def __format__(self, spec: str) -> str:
-        if spec == "e":
+        if spec in ["e", "t"]:
             return f"{self.evaluated}"
         return str(self)
 
@@ -933,6 +937,12 @@ class Sum():
 
         return value
 
+    def get_boundary(self) -> list[Point]:
+        points = []
+        for e in self.elements:
+            points += e.get_boundary()
+        return list(set(points))
+
     def append(self, other: Sum | Product | Nevada | Storage | Contact) -> None:
         # possibly check if each summand is already contained in some existing
         #   summand
@@ -959,7 +969,97 @@ class Sum():
 
         return Sum(elements)
 
+    def __format__(self, spec: str) -> str:
+        if spec == "t":
+            return " + ".join([f"{e:t}" for e in self.elements])
+        return str(self)
+
+    def __str__(self) -> str:
+        return " + ".join([str(e) for e in self.elements])
+
+if __name__ == "__main__":
+    # p = Product([])
+    # pp = Product([])
+
+    a = Sum([Contact(1, 2, 5), Storage(2), Contact(0, 3, 4)])
+    print(f"{a}")
+
+class ContactSequenceSummary():
+
+    def __init__(self,
+        E: float,
+        epsilon: float,
+        e: float,
+        tau: float,
+        omega: float,
+        A: float,
+        rho: float,
+        sigma: float,
+        S: float
+    ) -> None:
+
+        self.E = E # adjusted end times not including last
+        self.epsilon = epsilon # final adjusted end time
+        self.e = e # first contact end time
+        self.tau = tau # maximum throughput
+        self.omega = omega # total delay
+        self.A = A # total cumulant storage
+        self.rho = rho # storage requirement
+        self.sigma = sigma # first (adjusted) start time
+        self.S = S # maximum adjusted start time
+
+        return None
+
+    def contains_point(self, i: float, j: float) -> bool:
+
+        condition_a = self.sigma <= i and i <= min(self.E, self.epsilon)
+        if not condition_a:
+            return False
+
+        condition_b = self.S + self.omega <= j and \
+            j <= min(self.e + self.A, self.rho) + self.omega
+        if not condition_b:
+            return False
+
+        condition_c = i + self.omega <= j and j <= i + self.omega + self.A
+        if not condition_c:
+            return False
+
+        return True
+
+    def get_entry(self, i: float, j: float, flag: bool = False) -> bool | float:
+
+        contained = self.contains_point(i, j)
+
+        if flag:
+            return contained
+
+        value = min(self.E - i, self.tau, self.rho + self.omega - j)
+        return value if contained else 0
+
+    def __mul__(self, other: ContactSequenceSummary) -> ContactSequenceSummary:
+
+        return ContactSequenceSummary(
+            min(self.E, self.epsilon, other.E - self.omega),
+            other.epsilon - self.omega,
+            self.epsilon,
+            min(self.tau, other.tau, 
+                min(other.E, other.epsilon) - self.omega - self.S),
+            self.omega + other.omega,
+            self.A + other.A,
+            min(self.rho, other.e - self.A, other.rho - self.A - self.omega, 
+                other.epsilon - self.omega),
+            max(self.sigma, other.sigma - self.A - self.omega),
+            max(self.S, other.S - self.omega)
+        )
+
+    def to_nevada(self) -> Nevada:
+        return Nevada(
+            Contact(self.sigma, min(self.E, self.epsilon), 0), 
+            Contact(self.S, min(self.e + self.A, self.rho), self.rho), 
+            Storage(self.A)
+        )
 
     def __str__(self) -> str:
 
-        return "+".join([str(e) for e in self.elements])
+        return ""
