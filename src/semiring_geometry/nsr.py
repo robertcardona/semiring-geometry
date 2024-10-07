@@ -813,7 +813,9 @@ if __name__ == "__main__":
 
 class Product():
     
-    def __init__(self, sequence: list[Nevada | Storage | Contact]):
+    def __init__(self, 
+        sequence: list[Nevada | Storage | Contact],
+        summary: ContactSequenceSummary | None = None):
         
         if len(sequence) == 0:
             raise ValueError(f"`sequence` must not be empty")
@@ -984,6 +986,93 @@ if __name__ == "__main__":
     a = Sum([Contact(1, 2, 5), Storage(2), Contact(0, 3, 4)])
     print(f"{a}")
 
+class ContactSequence():
+
+
+    def __init__(self, sequence: list[Nevada | Storage | Contact]) -> None:
+
+        # self.sequence = sequence
+        self.contact_sequence: list[Contact] = []
+        self.storage_sequence: list[Storage] = []
+
+        # TODO : prepare sequence
+        # for e in sequence:
+        #     if isinstance(e, Contact):
+
+        # too much for an init
+        n = len(self.contact_sequence)
+        
+        start_adjusted: list[float] = []
+        end_adjusted: list[float] = []
+        delay_cumulant: list[float] = []
+        storage_cumulant: list[float] = []
+
+        E = min(end_adjusted[:-1])
+        epsilon = end_adjusted[-1]
+        e = end_adjusted[0]
+        tau = min([end - max(start_adjusted[:k + 1], default=0) 
+            for k, end in enumerate(end_adjusted)])
+        omega = sum(delay_cumulant)
+        A = sum(storage_cumulant)
+        rho = min([end_adjusted[-1]] + [end_adjusted[k] + storage_cumulant[n - 1] - storage_cumulant[k - 1] for k in range(n)])
+        sigma = max([start_adjusted[i] - storage_cumulant[i - 1] for i in range(n)])
+        S = max(start_adjusted)
+
+
+        self.summary = ContactSequenceSummary(E, epsilon, e, tau, omega, A, rho, sigma, S)
+
+        return None
+
+    def append(self, other: ContactSequence | Nevada | Storage | Contact) -> None:
+
+        if isinstance(other, ContactSequence):
+            self.contact_sequence += other.contact_sequence
+            self.storage_sequence += other.storage_sequence
+            
+            if self.summary == None:
+                self.summary = self.get_summary()
+            self.summary = self.summary * other.summary
+
+
+
+        return None
+
+    def get_summary(self) -> ContactSequenceSummary: # TODO : delete none
+        # assuming self.sequence is of the form c S c S ... S c
+        c, n = self.contact_sequence, len(self.contact_sequence)
+        s = self.storage_sequence
+
+        # TODO : double check all of this
+        start_adjusted = [c[0].start]
+        end_adjusted = [c[0].end]
+        delay_cumulant = [c[0].delay]
+        storage_cumulant = [0]
+
+        for k in range(1, n):
+            delay_k = c[k].delay + delay_cumulant[-1]
+            start_k = c[k].start - delay_k
+            # delay_cumulant.append(c[k].delay + delay_cumulant[-1])
+            # start_adjusted.append()
+        
+
+        return ContactSequenceSummary(0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+    def summarize(self) -> ContactSequenceSummary:
+        if self.summarize is not None:
+            return self.summary
+        self.summary = self.get_summary()
+
+        return self.summary
+
+    # def __getattr__(self, item: str) -> float:
+    #     if item == "summary":
+    #         if "summary" not in self.__dict__:
+    #             self.__dict__["summary"] = self.get_summary()
+
+    #     message = f"{item} is not a valid attribute of ContactSequence"
+    #     raise AttributeError(message)
+
+
 class ContactSequenceSummary():
 
     def __init__(self,
@@ -1037,6 +1126,9 @@ class ContactSequenceSummary():
         value = min(self.E - i, self.tau, self.rho + self.omega - j)
         return value if contained else 0
 
+    def get_boundary(self) -> list[Point]:
+        return self.to_nevada().get_boundary()
+
     def __mul__(self, other: ContactSequenceSummary) -> ContactSequenceSummary:
 
         return ContactSequenceSummary(
@@ -1061,5 +1153,4 @@ class ContactSequenceSummary():
         )
 
     def __str__(self) -> str:
-
-        return ""
+        return f"{self.to_nevada():t}"
