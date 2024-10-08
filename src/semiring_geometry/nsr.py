@@ -936,7 +936,7 @@ if __name__ == "__main__":
     ]
 
     sequence_b: list[Nevada | Storage | Contact] = [
-        Contact(0, 8, 12),
+        Contact(0, 8, 22),
         Storage(),
         Contact(22, INF, 0)
     ]
@@ -947,9 +947,12 @@ if __name__ == "__main__":
         Contact(0, INF, 22)
     ]
 
-    # assert Product(sequence_standard) == Product(sequence) # FAILS
+    # print(f"{Product(sequence)} = {Product(sequence):e}")
+    # print(f"{Product(sequence_standard)} = {Product(sequence_standard):e}")
+
+    assert Product(sequence_standard) == Product(sequence)
     assert Product(sequence_standard) == Product(sequence_a)
-    # assert Product(sequence_standard) == Product(sequence_b) # FAILS
+    assert Product(sequence_standard) == Product(sequence_b)
     assert Product(sequence_standard) == Product(sequence_c)
 
 
@@ -1143,13 +1146,15 @@ class ContactSequence():
 
         E = min(end_adjusted[:-1])
         epsilon = end_adjusted[-1]
-        e = end_adjusted[0]
+        e = min(end_adjusted[0], end_adjusted[1]) # TODO : double check
         tau = min([end - max(start_adjusted[:k + 1], default=0) 
             for k, end in enumerate(end_adjusted)])
-        omega = sum(cumulant_delay)
-        A = sum(cumulant_storage)
+        # omega = sum(cumulant_delay)
+        omega = cumulant_delay[-2]
+        # A = sum(cumulant_storage)
+        A = cumulant_storage[-2]
         rho = min([end_adjusted[-1]] + \
-            [end_adjusted[k] + cumulant_delay[n - 1] - cumulant_delay[k - 1]
+            [end_adjusted[k] + cumulant_delay[n - 2] - cumulant_delay[k - 1]
                 for k in range(n)])
         sigma = max([start_adjusted[i] - cumulant_storage[i - 1] 
                         for i in range(n)])
@@ -1163,6 +1168,13 @@ class ContactSequence():
         self.summary = self.get_summary()
 
         return self.summary
+
+    def __eq__(self, other) -> bool:
+
+        if isinstance(other, ContactSequence):
+            return self.summarize() == other.summarize()
+            # return self.summarize().to_nevada() == other.summarize().to_nevada()
+        return False
 
     def __str__(self) -> str:
         c, s = self.contact_sequence, self.storage_sequence
@@ -1248,6 +1260,11 @@ class ContactSequenceSummary():
             Storage(self.A)
         )
 
+    def __eq__(self, other) -> bool:
+        if isinstance(other, ContactSequenceSummary):
+            return self.__dict__ == other.__dict__
+        return False
+    
     def __format__(self, spec: str) -> str:
         if spec == "e":
             return f"{self.to_nevada()}"
@@ -1260,7 +1277,6 @@ class ContactSequenceSummary():
 # `ContactSequence` class unit tests
 if __name__ == "__main__":
 
-    size = 25
     sequence = [
         Contact(0, 11, 12),
         Storage(),
@@ -1271,26 +1287,37 @@ if __name__ == "__main__":
         Contact(4, INF, 6)
     ]
 
-    sequence_standard = [
-        Contact(0, 8, 12),
-        Storage(),
-        Contact(7, INF, 10)
+    sequence_standard = [Contact(0, 8, 12), Storage(), Contact(7, INF, 10)]
+
+    sequence_nevada_a: list[Nevada | Storage | Contact] = [
+        Nevada(Contact(0, 8, 12), Contact(12, INF, 10), Storage())
     ]
 
-    sequence_nevada = [
-        Nevada(Contact(0, 1, 5),Contact(3, 5, 5), Storage())
+    sequence_nevada_b: list[Nevada | Storage | Contact] = [
+        Nevada(Contact(0, 8, 22), Contact(22, INF, 0), Storage())
+    ]
+
+    sequence_nevada_c: list[Nevada | Storage | Contact] = [
+        Nevada(Contact(0, 8, 0), Contact(0, INF, 22), Storage())
     ]
 
     cs = ContactSequence(sequence)
     cs_std = ContactSequence(sequence_standard)
-    # csn = ContactSequence(sequence_nevada)
+    csn_a = ContactSequence(sequence_nevada_a)
+    csn_b = ContactSequence(sequence_nevada_b)
+    csn_c = ContactSequence(sequence_nevada_c)
 
-    print(f"{cs}")
-    print(f"{cs.summarize()}")
-    print(f"{cs.to_nevada()}")
-    print(f"{cs_std}")
+    # print(f"{cs}")
+    # print(f"{cs.summarize()}")
+    # print(f"{cs.to_nevada()}")
+    # print(f"{cs_std}")
+    # print(f"{cs_std.summarize()}")
+    # print(f"{cs_std.to_nevada()}")
     # print(f"{csn}")
 
 
-    assert ContactSequence(sequence_standard) == ContactSequence(sequence) # FAILS
-    # assert ContactSequence(sequence_standard) == ContactSequence(sequence_nevada)
+    assert cs_std.to_nevada() == cs.to_nevada()
+    assert cs_std == cs
+    assert cs_std == csn_a
+    assert cs_std == csn_b
+    assert cs_std == csn_c
