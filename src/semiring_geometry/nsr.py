@@ -5,6 +5,8 @@ Storage-Limited Store-and-Forward Nevada Semiring.
 
 from __future__ import annotations
 
+from typing import Self
+
 import portion as P
 
 
@@ -911,6 +913,46 @@ if __name__ == "__main__":
     ]
     # print(f"{Product(sequence):e}")
 
+    sequence = [
+        Contact(0, 11, 12),
+        Storage(),
+        Storage(),
+        Contact(5, 20, 1),
+        Contact(8, 90, 3),
+        Storage(),
+        Contact(4, INF, 6)
+    ]
+
+    sequence_standard = [
+        Contact(0, 8, 12),
+        Storage(),
+        Contact(7, INF, 10)
+    ]
+
+    sequence_a: list[Nevada | Storage | Contact]= [
+        Contact(0, 8, 12),
+        Storage(),
+        Contact(12, INF, 10)
+    ]
+
+    sequence_b: list[Nevada | Storage | Contact] = [
+        Contact(0, 8, 12),
+        Storage(),
+        Contact(22, INF, 0)
+    ]
+
+    sequence_c: list[Nevada | Storage | Contact] = [
+        Contact(0, 8, 0),
+        Storage(),
+        Contact(0, INF, 22)
+    ]
+
+    # assert Product(sequence_standard) == Product(sequence) # FAILS
+    assert Product(sequence_standard) == Product(sequence_a)
+    # assert Product(sequence_standard) == Product(sequence_b) # FAILS
+    assert Product(sequence_standard) == Product(sequence_c)
+
+
 class Sum():
 
     def __init__(self, 
@@ -937,6 +979,7 @@ class Sum():
 
         return value
 
+    # doesn't make sense
     def get_boundary(self) -> list[Point]:
         points = []
         for e in self.elements:
@@ -946,7 +989,21 @@ class Sum():
     def append(self, other: Sum | Product | Nevada | Storage | Contact) -> None:
         # possibly check if each summand is already contained in some existing
         #   summand
+
+        if isinstance(other, Sum):
+            self.elements += other.elements
+        else:
+            self.elements.append(other)
+
         return None
+
+    # += should use append logic
+    def __iadd__(self, 
+        other: Sum | Product | Nevada | Storage | Contact
+    ) -> Self:
+        self.append(other)
+
+        return self
 
     def __add__(self, other: Sum | Product | Nevada | Storage | Contact) -> Sum:
         if isinstance(other, Sum):
@@ -954,7 +1011,8 @@ class Sum():
         
         return Sum(self.elements + [other])
 
-    # TODO : __radd__
+    def __radd__(self, other: Product | Nevada | Storage | Contact) -> Sum:
+        return Sum([other] + self.elements)
 
     def __mul__(self, other: Sum | Product | Nevada | Storage | Contact) -> Sum:
 
@@ -982,7 +1040,14 @@ if __name__ == "__main__":
     # pp = Product([])
 
     a = Sum([Contact(1, 2, 5), Storage(2), Contact(0, 3, 4)])
-    print(f"{a}")
+    a = Sum([Contact(0, 3, 0) * Storage() * Contact(1, 4, 0)])
+    assert a[0, 5] == 0
+    assert a[1, 3] == 1
+
+    # print(a.get_boundary())
+    # print(f"{a + s}")
+    # print(f"{s + a}")
+
 
 # this is essentially another for of Product class
 class ContactSequence():
@@ -999,7 +1064,7 @@ class ContactSequence():
         for i, e in enumerate(sequence):
             m, n = len(contact_sequence), len(storage_sequence)
             if isinstance(e, Contact):
-                if m == n - 1:
+                if m == n + 1:
                     contact_sequence[-1] *= e
                 else:
                     contact_sequence.append(e)
@@ -1026,16 +1091,24 @@ class ContactSequence():
             else:
                 raise ValueError(f"Invalid object type in `sequence` : {e}")
 
+            # for i, a in enumerate(contact_sequence):
+            #     print(f"\tcs[{i}] = {a}")
+            # for j, b in enumerate(storage_sequence):
+            #     print(f"\tss[{j}] = {b}")
+
         self.contact_sequence = contact_sequence
         self.storage_sequence = storage_sequence
 
-        if summary is not None:
-            self.summary = summary
+        # if summary is not None:
+        self.summary = summary
 
         return None
 
     def get_entry(self, i: float, j: float, flag:bool = False) -> bool | float:
         return self.summarize().get_entry(i, j, flag)
+
+    def to_nevada(self) -> Nevada:
+        return self.summarize().to_nevada()
 
     def get_boundary(self) -> list[Point]:
         return self.summarize().get_boundary()
@@ -1057,15 +1130,15 @@ class ContactSequence():
         c, m = self.contact_sequence, len(self.contact_sequence)
         s, n = self.storage_sequence, len(self.storage_sequence)
 
-        assert m == n - 1, "contact and storage sequences incorrect form"
+        assert m == n + 1, "contact and storage sequences incorrect form"
 
         cumulant_delay = [sum(x.delay for x in c[:i + 1])
                                             for i in range(m)] + [0]
         cumulant_storage = [sum([y.capacity for y in s[:i + 1]])
                                             for i in range(n)] + [0]
-        start_adjusted = [x.start - cumulant_storage[i - 1] 
+        start_adjusted = [x.start - cumulant_delay[i - 1] 
                                             for i, x in enumerate(c)]
-        end_adjusted = [x.end - cumulant_storage[i - 1] 
+        end_adjusted = [x.end - cumulant_delay[i - 1] 
                                             for i, x in enumerate(c)]
 
         E = min(end_adjusted[:-1])
@@ -1076,7 +1149,7 @@ class ContactSequence():
         omega = sum(cumulant_delay)
         A = sum(cumulant_storage)
         rho = min([end_adjusted[-1]] + \
-            [end_adjusted[k] + cumulant_storage[n - 1] - cumulant_storage[k - 1]
+            [end_adjusted[k] + cumulant_delay[n - 1] - cumulant_delay[k - 1]
                 for k in range(n)])
         sigma = max([start_adjusted[i] - cumulant_storage[i - 1] 
                         for i in range(n)])
@@ -1085,7 +1158,7 @@ class ContactSequence():
         return ContactSequenceSummary(E, epsilon, e, tau, omega, A, rho, sigma, S)
 
     def summarize(self) -> ContactSequenceSummary:
-        if self.summarize is not None:
+        if self.summary is not None:
             return self.summary
         self.summary = self.get_summary()
 
@@ -1094,7 +1167,7 @@ class ContactSequence():
     def __str__(self) -> str:
         c, s = self.contact_sequence, self.storage_sequence
         interleaved = [e for p in zip(c, s) for e in p] + [c[-1]]
-        return "*".join([f"{e:t}" for e in interleaved])
+        return "*".join([f"{e}" for e in interleaved])
 
 class ContactSequenceSummary():
 
@@ -1175,5 +1248,49 @@ class ContactSequenceSummary():
             Storage(self.A)
         )
 
+    def __format__(self, spec: str) -> str:
+        if spec == "e":
+            return f"{self.to_nevada()}"
+        return str(self)
+
     def __str__(self) -> str:
-        return f"{self.to_nevada():t}"
+        return " | ".join([f"{key} : {value}" 
+            for key, value in self.__dict__.items()])
+
+# `ContactSequence` class unit tests
+if __name__ == "__main__":
+
+    size = 25
+    sequence = [
+        Contact(0, 11, 12),
+        Storage(),
+        Storage(),
+        Contact(5, 20, 1),
+        Contact(8, 90, 3),
+        Storage(),
+        Contact(4, INF, 6)
+    ]
+
+    sequence_standard = [
+        Contact(0, 8, 12),
+        Storage(),
+        Contact(7, INF, 10)
+    ]
+
+    sequence_nevada = [
+        Nevada(Contact(0, 1, 5),Contact(3, 5, 5), Storage())
+    ]
+
+    cs = ContactSequence(sequence)
+    cs_std = ContactSequence(sequence_standard)
+    # csn = ContactSequence(sequence_nevada)
+
+    print(f"{cs}")
+    print(f"{cs.summarize()}")
+    print(f"{cs.to_nevada()}")
+    print(f"{cs_std}")
+    # print(f"{csn}")
+
+
+    assert ContactSequence(sequence_standard) == ContactSequence(sequence) # FAILS
+    # assert ContactSequence(sequence_standard) == ContactSequence(sequence_nevada)
