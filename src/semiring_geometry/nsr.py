@@ -25,7 +25,7 @@ def intersect(intervals: list[P.Interval]) -> P.Interval:
     -------
     P.interval
         A single portion interval object which is the intersection of all 
-            the elements of `intervals`.
+        the elements of `intervals`.
     """
     interval = P.closed(-INF, INF)
     
@@ -64,9 +64,9 @@ def get_ascii_diagram(
 ) -> str:
     """
     Generates an ASCII diagram representation of the given element over a 
-        given window. 
-        
-        Works on any of the classes here implementing the `get_entry` method.
+    given window. 
+
+    Works on any of the classes here implementing the `get_entry` method.
 
     Parameters
     ----------
@@ -200,7 +200,7 @@ class Contact():
     def contains_point(self, i: float, j: float) -> bool:
         """
         Checks if the index [i, j] lies within the support of the associated
-            matrix.
+        matrix.
         
         Parameters
         ----------
@@ -215,17 +215,14 @@ class Contact():
             True if [i, j] lies within the support of the associated matrix.
             Otherwise, returns False.
         """
-
         if self.start <= i and i <= self.end and j == i + self.delay:
             return True
-
         return False
 
     def __getitem__(self, index: Point) -> bool | float:
         """
         Retrieves the [i, j]-th entry of the matrix.
-            This defauls to the [0, infty]-semiring, so the result will be a 
-            float.
+        This defauls to the [0, infty]-semiring, so the result will be a float.
 
         Parameters
         ----------
@@ -243,10 +240,12 @@ class Contact():
     def get_entry(self, i: float, j: float, flag: bool = False) -> bool | float:
         """
         Retrieves the [i, j]-th entry of the matrix.
-            If `flag` is True, it assumes you're working within the boolean 
-            semiring and returns boolean values.
-            If `flag` is False, it assumes you're working within the [0, infty]
-            semiring and returns real values [0, infty].
+        
+        If `flag` is True, it assumes you're working within the boolean 
+        semiring and returns boolean values.
+
+        If `flag` is False, it assumes you're working within the [0, infty]
+        semiring and returns real values [0, infty].
 
         Parameters
         ----------
@@ -262,14 +261,12 @@ class Contact():
         -------
         bool | float
             The value of the matrix at the [i, j]-th entry in the specified 
-                semiring.
+            semiring.
         """
-
         contained = self.contains_point(i, j)
 
         if flag:
             return contained
-
         return self.end - i if contained else 0
 
         # if self.contains_point(i, j):
@@ -284,22 +281,33 @@ class Contact():
         -------
         list[Point]
             A list of unique boundary points, where each point is a tuple 
-                (i, j) representing the (row, column) indices of the 
-                associated matrix.
+            (i, j) representing the (row, column) indices of the 
+            associated matrix.
         """
         points = [
             (self.start, self.start + self.delay),
             (self.end, self.end + self.delay)
         ]
-
         return list(set(points))
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
+        """
+        Checks if the current `Contact` instance is equal to another object.
 
+        Parameters
+        ----------
+        other : object
+            The object to compare with the current instance. 
+
+        Returns
+        -------
+        bool
+            True if `other` is a `Contact` instance with the same
+            `start`, `end` and `delay. Otherwise, returns False.
+        """
         if isinstance(other, Contact):
             return self.delay == other.delay and \
                 self.get_interval() == other.get_interval()
-
         return False
 
     def __contains__(self, other: Contact | Point | object) -> bool:
@@ -310,21 +318,19 @@ class Contact():
         ----------
         other : Contact | Point | object
             The object to check for containment.
-                This can be a tuple representing an index, 
-                another `Contact` instance, or any other object.
+            This can be a tuple representing an index, 
+            another `Contact` instance, or any other object.
 
         Returns
         -------
         bool
             True if the object is contained within the instance, 
-                otherwise False.
+            otherwise False.
         """
-
         if isinstance(other, tuple) and isinstance_point(other):
             return self.contains_point(*other)
 
         if isinstance(other, Contact):
-
             if self.delay != other.delay or \
                 other.get_interval() not in self.get_interval():
                 return False
@@ -333,6 +339,21 @@ class Contact():
         return False
 
     def __add__(self, other: Contact) -> Sum:
+        """
+        Adds two `Contact` instances, returning a `Sum` object.
+
+        Parameters
+        ----------
+        other : Contact
+            Another `Contact` instance to add to the current instance.
+
+        Returns
+        -------
+        Sum
+            A `Sum` object containing one or both `Contact` instances:
+            If either is contained within the other, it returns the larger of 
+            the two.
+        """
         if self in other:
             return Sum([other])
         if other in self:
@@ -340,6 +361,27 @@ class Contact():
         return Sum([self, other])
 
     def __mul__(self, other: Contact) -> Contact:
+        """
+        Performs multiplication of two `Contact` instances.
+
+        Parameters
+        ----------
+        other : Contact
+            Another `Contact` instance to multiply with the current instance.
+
+        Returns
+        -------
+        Contact
+            A new `Contact` instance representing the product.
+            
+            If the resulting interval is invalid (i.e., `end - start < 0`),
+            the resulting `Contact` will have `start`, `end`, and `delay` zero.
+
+        Raises
+        ------
+        NotImplemented
+            If `other` is not an instance of `Contact`.
+        """
         if not isinstance(other, Contact):
             return NotImplemented
             
@@ -353,6 +395,25 @@ class Contact():
         return Contact(start, end, delay)
 
     def __format__(self, spec: str) -> str:
+        """
+        Formats the `Contact` instance as a string, with an option to format it
+        in LaTeX code.
+
+        Parameters
+        ----------
+        spec : str
+            The format specification. 
+            - If `spec` is "t", the output is formatted as valid LaTeX code.
+            - Otherwise, it defaults to the string representation of the object.
+
+        Returns
+        -------
+        str
+            The formatted string representation of the `Contact` instance.
+            If `spec` is "t", it returns a LaTeX-compatible string with the 
+            interval and delay.
+            Otherwise, it returns the default string representation.
+        """
         if spec == "t":
             start = str(self.start)
             end = str(self.end)
@@ -362,7 +423,6 @@ class Contact():
                 end = "\\infty"
 
             return f"([{start}, {end}] : {self.delay})"
-
         return str(self)
 
     def __str__(self) -> str:
@@ -1595,7 +1655,7 @@ class Matrix():
     def get_indices(rows: int, columns: int) -> list[tuple[int, int]]:
         return [(i, j) for i in range(rows) for j in range(columns)]
 
-
+# help(Contact)
 
 exit()
 
