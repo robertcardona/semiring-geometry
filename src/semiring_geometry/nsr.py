@@ -880,7 +880,6 @@ class Product():
 # `Product` class unit tests
 if __name__ == "__main__":
 
-    size = 25
     sequence: list[Nevada | Storage | Contact] = [
         Contact(0, 10, 5),
         Storage(),
@@ -1107,6 +1106,19 @@ class ContactSequence():
 
         return None
 
+    def get_sequence(self) -> list[Nevada | Storage | Contact]:
+
+        c, s = self.contact_sequence, self.storage_sequence
+
+        interleaved: list[Nevada | Storage | Contact] = []
+            # = [e for p in zip(c, s) for e in p] + [c[-1]]
+        for p in zip(c, s):
+            for e in p:
+                interleaved.append(e)
+        interleaved.append(c[-1])
+
+        return interleaved
+
     def get_entry(self, i: float, j: float, flag:bool = False) -> bool | float:
         return self.summarize().get_entry(i, j, flag)
 
@@ -1147,6 +1159,7 @@ class ContactSequence():
         E = min(end_adjusted[:-1])
         epsilon = end_adjusted[-1]
         e = min(end_adjusted[0], end_adjusted[1]) # TODO : double check
+        print(f"{end_adjusted[0] = }, {end_adjusted[1] = }")
         tau = min([end - max(start_adjusted[:k + 1], default=0) 
             for k, end in enumerate(end_adjusted)])
         # omega = sum(cumulant_delay)
@@ -1169,6 +1182,18 @@ class ContactSequence():
 
         return self.summary
 
+    def __mul__(self, 
+        other: ContactSequence | Nevada | Storage | Contact
+    ) -> ContactSequence:
+
+        if isinstance(other, ContactSequence):
+            return ContactSequence(
+                self.get_sequence() + other.get_sequence(), 
+                self.summarize() * other.summarize()
+            )
+        else:
+            return self * ContactSequence([other])
+
     def __eq__(self, other) -> bool:
 
         if isinstance(other, ContactSequence):
@@ -1177,9 +1202,10 @@ class ContactSequence():
         return False
 
     def __str__(self) -> str:
-        c, s = self.contact_sequence, self.storage_sequence
-        interleaved = [e for p in zip(c, s) for e in p] + [c[-1]]
-        return "*".join([f"{e}" for e in interleaved])
+        # c, s = self.contact_sequence, self.storage_sequence
+        # interleaved = [e for p in zip(c, s) for e in p] + [c[-1]]
+        sequence = self.get_sequence()
+        return "*".join([f"{e}" for e in sequence])
 
 class ContactSequenceSummary():
 
@@ -1321,3 +1347,84 @@ if __name__ == "__main__":
     assert cs_std == csn_a
     assert cs_std == csn_b
     assert cs_std == csn_c
+
+# `ContactSequence` class unit tests
+if __name__ == "__main__":
+
+    sequence = [
+        Contact(0, 10, 5),
+        Storage(),
+        Storage(),
+        Contact(3, 6, 2),
+        Storage(),
+        Contact(1, 8, 1),
+        Contact(0, 8, 2)
+    ]
+
+    sequence_standard = [
+        Contact(0, 1, 5),
+        Storage(),
+        Contact(3, 5, 5)
+    ]
+
+    sequence_nevada = [
+        Nevada(Contact(0, 1, 5),Contact(3, 5, 5), Storage())
+    ]
+
+    print(ContactSequence(sequence_standard))
+    print(ContactSequence(sequence))
+    print(ContactSequence(sequence_standard).summarize())
+    print(ContactSequence(sequence).summarize())
+    assert ContactSequence(sequence_standard) == ContactSequence(sequence)
+    assert ContactSequence(sequence_standard) == ContactSequence(sequence_nevada)
+
+    sequence_standard = [
+        Contact(0, 3, 0),
+        Storage(1),
+        Contact(3, 4, 0),
+        Storage(0),
+        Contact(2, 7, 0)
+    ]
+    # print(f"{ContactSequence(sequence):e}")
+
+    sequence = [
+        Contact(0, 11, 12),
+        Storage(),
+        Storage(),
+        Contact(5, 20, 1),
+        Contact(8, 90, 3),
+        Storage(),
+        Contact(4, INF, 6)
+    ]
+
+    sequence_standard = [
+        Contact(0, 8, 12),
+        Storage(),
+        Contact(7, INF, 10)
+    ]
+
+    sequence_a = [
+        Contact(0, 8, 12),
+        Storage(),
+        Contact(12, INF, 10)
+    ]
+
+    sequence_b = [
+        Contact(0, 8, 22),
+        Storage(),
+        Contact(22, INF, 0)
+    ]
+
+    sequence_c = [
+        Contact(0, 8, 0),
+        Storage(),
+        Contact(0, INF, 22)
+    ]
+
+    # print(f"{ContactSequence(sequence)} = {ContactSequence(sequence):e}")
+    # print(f"{ContactSequence(sequence_standard)} = {ContactSequence(sequence_standard):e}")
+
+    assert ContactSequence(sequence_standard) == ContactSequence(sequence)
+    assert ContactSequence(sequence_standard) == ContactSequence(sequence_a)
+    assert ContactSequence(sequence_standard) == ContactSequence(sequence_b)
+    assert ContactSequence(sequence_standard) == ContactSequence(sequence_c)
