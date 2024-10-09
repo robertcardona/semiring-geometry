@@ -35,6 +35,21 @@ def intersect(intervals: list[P.Interval]) -> P.Interval:
     return interval
 
 def contains(interval: P.Interval, k: float) -> bool:
+    """
+    Checks if the value `k` is contained within the `interval`.
+
+    Parameters
+    ----------
+    interval : P.Interval
+        A portion interval object.
+    k : float
+        A value to check.
+
+    Returns
+    -------
+    bool
+        True if `k` is within the `interval`, otherwise False.
+    """
     if k == -INF:
         return interval.lower == k
     if k == INF:
@@ -47,6 +62,28 @@ def get_ascii_diagram(
     end: float,
     step: float = 1
 ) -> str:
+    """
+    Generates an ASCII diagram representation of the given element over a 
+        given window. 
+        
+        Works on any of the classes here implementing the `get_entry` method.
+
+    Parameters
+    ----------
+    element : Contact | Storage | Nevada
+        The object to generate the diagram of.
+    start : float
+        The starting value of the range.
+    end : float
+        The ending value of the range.
+    step : float, optional
+        The step size for the range (default is 1).
+
+    Returns
+    -------
+    str
+        A string representing the ASCII diagram of the element over the window.
+    """
     indices = [round(start + delta * step, 3) for delta in range(int((end - start) / step) + 1)]
 
     diagram = ""
@@ -88,6 +125,19 @@ if __name__ == "__main__":
 Point = tuple[float, float]
 
 def isinstance_point(obj: object) -> bool:
+    """
+    Checks if the object is a point represented as a tuple of two numbers.
+
+    Parameters
+    ----------
+    obj : object
+        The object to check.
+
+    Returns
+    -------
+    bool
+        True if the object is a tuple of two numbers, otherwise False.
+    """
     if isinstance(obj, tuple):
         types = list(map(type, obj))
         return types == [int, int] or types == [float, float] or \
@@ -136,9 +186,35 @@ class Contact():
         self.delay = delay
 
     def get_interval(self) -> P.Interval:
+        """
+        Returns the interval defined by the `start` and `end` attributes of 
+            the Contact.
+
+        Returns
+        -------
+        P.Interval
+            A closed portion interval between `self.start` and `self.end`.
+        """
         return P.closed(self.start, self.end)
 
     def contains_point(self, i: float, j: float) -> bool:
+        """
+        Checks if the index [i, j] lies within the support of the associated
+            matrix.
+        
+        Parameters
+        ----------
+        i : float
+            A row index of the matrix.
+        j : float
+            A column index of the matrix.
+        
+        Returns
+        -------
+        bool
+            True if [i, j] lies within the support of the associated matrix.
+            Otherwise, returns False.
+        """
 
         if self.start <= i and i <= self.end and j == i + self.delay:
             return True
@@ -146,10 +222,48 @@ class Contact():
         return False
 
     def __getitem__(self, index: Point) -> bool | float:
-        # NOTE : this assumes you want the max-min [0, infty] semiring
+        """
+        Retrieves the [i, j]-th entry of the matrix.
+            This defauls to the [0, infty]-semiring, so the result will be a 
+            float.
+
+        Parameters
+        ----------
+        index : Point
+            A tuple representing the (i, j)-th entry of the matrix.
+
+        Returns
+        -------
+        bool | float
+            The value of the entry at the [i, j]-th coordinates. 
+            Will be zero if it lies outside the support.
+        """
         return self.get_entry(index[0], index[1])
 
     def get_entry(self, i: float, j: float, flag: bool = False) -> bool | float:
+        """
+        Retrieves the [i, j]-th entry of the matrix.
+            If `flag` is True, it assumes you're working within the boolean 
+            semiring and returns boolean values.
+            If `flag` is False, it assumes you're working within the [0, infty]
+            semiring and returns real values [0, infty].
+
+        Parameters
+        ----------
+        i : float
+            A row index of the matrix.
+        j : float
+            A column index of the matrix.
+        flag : bool, optional
+            If True, assumes you're working within the boolean semiring.
+            If False assumes you're working within the [0, infty] semiring.
+
+        Returns
+        -------
+        bool | float
+            The value of the matrix at the [i, j]-th entry in the specified 
+                semiring.
+        """
 
         contained = self.contains_point(i, j)
 
@@ -163,6 +277,16 @@ class Contact():
         # return False if self.boolean else 0
 
     def get_boundary(self) -> list[Point]:
+        """
+        Calculates the boundary points of the Contact.
+    
+        Returns
+        -------
+        list[Point]
+            A list of unique boundary points, where each point is a tuple 
+                (i, j) representing the (row, column) indices of the 
+                associated matrix.
+        """
         points = [
             (self.start, self.start + self.delay),
             (self.end, self.end + self.delay)
@@ -178,7 +302,23 @@ class Contact():
 
         return False
 
-    def __contains__(self, other: Contact | Point) -> bool:
+    def __contains__(self, other: Contact | Point | object) -> bool:
+        """
+        Checks if the specified object is contained within the Contact.
+
+        Parameters
+        ----------
+        other : Contact | Point | object
+            The object to check for containment.
+                This can be a tuple representing an index, 
+                another `Contact` instance, or any other object.
+
+        Returns
+        -------
+        bool
+            True if the object is contained within the instance, 
+                otherwise False.
+        """
 
         if isinstance(other, tuple) and isinstance_point(other):
             return self.contains_point(*other)
@@ -191,6 +331,13 @@ class Contact():
             return True
 
         return False
+
+    def __add__(self, other: Contact) -> Sum:
+        if self in other:
+            return Sum([other])
+        if other in self:
+            return Sum([self])
+        return Sum([self, other])
 
     def __mul__(self, other: Contact) -> Contact:
         if not isinstance(other, Contact):
@@ -311,7 +458,7 @@ class Storage():
 
         return False
 
-    def __contains__(self, other: Storage | Contact | Point) -> bool:
+    def __contains__(self, other: Storage | Contact | Point | object) -> bool:
 
         if isinstance(other, tuple) and isinstance_point(other):
             return self.contains_point(*other)
@@ -323,6 +470,18 @@ class Storage():
             return self.capacity >= other.capacity
 
         return False
+
+    def __add__(self, other: Storage | Contact) -> Sum:
+        if other in self:
+            return Sum([self])
+        if self in other:
+            return Sum([other])
+        return Sum([self, other])
+
+    def __radd__(self, other: Contact) -> Sum:
+        if other in self:
+            return Sum([self])
+        return Sum([other, self])
 
     def __mul__(self, other: Storage | Contact) -> Nevada | Storage:
 
@@ -662,7 +821,22 @@ class Nevada():
         return self.left == other.left and self.right == other.right and \
             self.storage == other.storage
 
-    def __mul__(self, other: Contact | Storage | Nevada) -> Nevada:
+    def __add__(self, other: Nevada | Storage | Contact) -> Sum:
+
+        if other in self:
+            return Sum([self])
+        if self in other:
+            return Sum([other])
+        return Sum([self, other])
+
+    def __radd__(self, other: Storage | Contact) -> Sum:
+        if other in self:
+            return Sum([self])
+        if self in other:
+            return Sum([other])
+        return Sum([other, self])
+
+    def __mul__(self, other: Nevada | Storage | Contact) -> Nevada:
                 
         if isinstance(other, Nevada):
             # both are nevadas
@@ -850,6 +1024,14 @@ class Product():
     def get_entry(self, i: float, j: float, flag: bool = False) -> bool | float:
         return self.evaluated.get_entry(i, j, flag)
 
+    def __add__(self, other: Product | Nevada | Storage | Contact) -> Sum:
+        # TODO : add containment logic
+
+        return Sum([self, other])
+
+    def __radd__(self, other: Nevada | Storage | Contact) -> Sum:
+        return Sum([other, self])
+
     def __mul__(self, other: Product | Nevada | Storage | Contact) -> Product:
         if isinstance(other, Product):
             return Product(self.sequence + other.sequence)
@@ -861,6 +1043,10 @@ class Product():
     def __rmul__(self, other: Nevada | Storage | Contact) -> Product:
 
         return Product([other] + self.sequence)
+
+    def __contains__(self, other: Product | Nevada | Storage | Contact) -> bool:
+        # TODO : implement
+        return False
 
         # return NotImplemented
     def __eq__(self, other) -> bool:
@@ -989,15 +1175,28 @@ class Sum():
         return list(set(points))
 
     def append(self, other: Sum | Product | Nevada | Storage | Contact) -> None:
-        # possibly check if each summand is already contained in some existing
-        #   summand
-
         if isinstance(other, Sum):
-            self.elements += other.elements
+            for e in other.elements:
+                self.append(e)
         else:
-            self.elements.append(other)
+            if other in self:
+                self.elements.append(other)
 
         return None
+
+    def __contains__(self, 
+        other: Sum | Product | Nevada | Storage | Contact
+    ) -> bool:
+        if isinstance(other, Sum):
+            for e in other.elements:
+                if e not in self:
+                    return False
+            return True
+        else:
+            if other in self:
+                return True
+
+        return False
 
     # += should use append logic
     def __iadd__(self, 
@@ -1159,7 +1358,7 @@ class ContactSequence():
         E = min(end_adjusted[:-1])
         epsilon = end_adjusted[-1]
         e = min(end_adjusted[0], end_adjusted[1]) # TODO : double check
-        print(f"{end_adjusted[0] = }, {end_adjusted[1] = }")
+        # print(f"{end_adjusted[0] = }, {end_adjusted[1] = }")
         tau = min([end - max(start_adjusted[:k + 1], default=0) 
             for k, end in enumerate(end_adjusted)])
         # omega = sum(cumulant_delay)
@@ -1348,6 +1547,59 @@ if __name__ == "__main__":
     assert cs_std == csn_b
     assert cs_std == csn_c
 
+# TODO : maybe rename to `SemiringMatrix`
+Element = Sum | Product | Nevada | Storage | Contact
+class Matrix():
+    
+    def __init__(self, m: int, n: int, array: list[list[Element]]) -> None:
+
+        self.dim_row = m
+        self.dim_col = n
+        self.array = array
+
+        return None
+
+    def __getitem__(self, index: tuple[int, int]) -> Element:
+        return self.array[index[0]][index[1]]
+    
+    def __setitem__(self, index: tuple[int, int], value: Element) -> None:
+        self.array[index[0]][index[1]] = value
+
+    def __add__(self, other: Matrix) -> Matrix:
+        if self.dim_row != other.dim_row or self.dim_col != other.dim_col:
+            raise ValueError("Dimension mismatch in addition")
+
+        array = Matrix.empty_array(self.dim_row, self.dim_col)
+        for i, j in Matrix.get_indices(self.dim_row, self.dim_col):
+            array[i][j] = self[i, j] + other[i, j]
+
+        return Matrix(self.dim_row, self.dim_col, array)
+
+    def __mul__(self, other: Matrix) -> Matrix:
+        if self.dim_col != other.dim_row:
+            raise ValueError("Dimension mismatch in multiplication")
+
+        array = Matrix.empty_array(self.dim_row, other.dim_col)
+        for i, j in Matrix.get_indices(self.dim_row, other.dim_col):
+            for k in range(self.dim_col):
+                # __iadd__ appends instead of creating new Sum object on LHS
+                array[i][j] += self[i, k] + other[k, j]
+
+        return Matrix(self.dim_row, self.dim_col, array)
+
+    @staticmethod
+    def empty_array(dim_row: int, dim_col: int) -> list[list[P.Interval]]:
+        return [[Sum([]) for c in range(dim_col)] for r in range(dim_row)]
+
+    @staticmethod
+    def get_indices(rows: int, columns: int) -> list[tuple[int, int]]:
+        return [(i, j) for i in range(rows) for j in range(columns)]
+
+
+
+exit()
+
+# TODO : delete following
 # `ContactSequence` class unit tests
 if __name__ == "__main__":
 
