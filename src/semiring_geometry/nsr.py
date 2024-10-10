@@ -4,11 +4,9 @@ Storage-Limited Store-and-Forward Nevada Semiring.
 """
 
 from __future__ import annotations
-
 from typing import Self
 
 import portion as P
-
 
 INF = float("inf")
 
@@ -151,7 +149,6 @@ if __name__ == "__main__":
     assert not isinstance_point((0, "2.0"))
     assert not isinstance_point("test")
     assert not isinstance_point(0)
-
 
 class Contact():
 
@@ -426,12 +423,29 @@ class Contact():
         return str(self)
 
     def __str__(self) -> str:
+        """
+        Produces a string representation of the contact of the form 
+        `([start, end] : delay)`.
+
+        Returns
+        -------
+        str
+            A string representation of the contact.
+        """
         return f"([{self.start}, {self.end}] : {self.delay})"
 
     @staticmethod
     def identity() -> Contact:
-        return Contact(-INF, INF, 0)
+        """
+        Returns the multiplicative identity `Contact` instance, representing an
+        unbounded interval with zero delay.
 
+        Returns
+        -------
+        Contact
+            A `Contact` instance Contact(-INF, INF, 0)
+        """
+        return Contact(-INF, INF, 0)
 
 if __name__ == "__main__":
 
